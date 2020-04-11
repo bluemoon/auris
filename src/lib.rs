@@ -1,3 +1,8 @@
+//! **auris** is an experimental URI parsing library
+//!
+//! - Uses only safe features in rust.
+//! - `rfc2396` & `rfc3986` compliant (incomplete)
+//!
 extern crate nom;
 
 use nom::{
@@ -11,7 +16,7 @@ use nom::{
 
 /// Authority section of the URI
 #[derive(Debug, PartialEq)]
-struct Authority {
+pub struct Authority {
     scheme: String,
     host: String,
     password: Option<String>,
@@ -19,15 +24,19 @@ struct Authority {
     username: Option<String>,
 }
 
-struct Path {
+/// Path e.g. /a/b/c
+pub struct Path {
     path: String,
 }
 
-struct QueryString {
+/// QueryString is the part of a URI which assigns values to specified parameters.
+#[derive(Debug)]
+pub struct QueryString {
     qs: String,
 }
 
-struct URI {
+/// URI is the whole URI object
+pub struct URI {
     authority: Authority,
     path: Option<Path>,
     query_string: Option<QueryString>,
@@ -75,7 +84,7 @@ pub mod parsers {
     /// ```
     // http://example.com
     // postgres://user:pw@host:5432/db
-    fn authority(input: &str) -> IResult<&str, Authority> {
+    pub fn authority(input: &str) -> IResult<&str, Authority> {
         match all_consuming(tuple((scheme, user_info, take_till(|c| c == '/'))))(input) {
             Ok((remaining_input, (scheme, (username, password), host))) => Ok((
                 remaining_input,
