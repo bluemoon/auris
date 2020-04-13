@@ -19,7 +19,6 @@ use std::collections::HashMap;
 /// Authority section of the URI
 #[derive(Debug, PartialEq)]
 pub struct Authority {
-    scheme: String,
     //TODO(bradford): IPV6, IPV4, DNS enum
     host: String,
     username: Option<String>,
@@ -28,23 +27,20 @@ pub struct Authority {
 }
 
 /// Path e.g. /a/b/c
-#[derive(Debug, PartialEq)]
-pub struct Path {
-    path: Vec<String>,
-}
+// #[derive(Debug, PartialEq)]
+// pub struct Path {}
 
 /// QueryString is the part of a URI which assigns values to specified parameters.
-#[derive(Debug, PartialEq)]
-pub struct QueryString {
-    qs: HashMap<String, String>,
-}
+// #[derive(Debug, PartialEq)]
+// pub struct QueryString {}
 
 /// URI is the whole URI object
 #[derive(Debug, PartialEq)]
 pub struct URI {
+    scheme: String,
     authority: Authority,
-    path: Option<Path>,
-    query_string: Option<QueryString>,
+    path: Option<Vec<String>>,
+    qs: Option<HashMap<String, String>>,
 }
 
 pub mod parsers {
@@ -57,6 +53,7 @@ pub mod parsers {
     //!
     use super::*;
 
+    /// Parse out the scheme
     fn scheme(input: &str) -> IResult<&str, &str> {
         // postgres://
         // bob://
@@ -66,7 +63,8 @@ pub mod parsers {
         })(input)
     }
 
-    fn user_info(input: &str) -> IResult<&str, (Option<&str>, Option<&str>)> {
+    /// Parse the user credentials from the authority section
+    fn authority_credentials(input: &str) -> IResult<&str, (Option<&str>, Option<&str>)> {
         // user:pw@
         let user_pw_combinator = tuple((cut(alpha1), tag(":"), cut(alpha1), tag("@")));
         let user_pw_tuple = map(user_pw_combinator, |f| match f {
@@ -159,17 +157,15 @@ pub mod parsers {
             ))),
             |f| match f {
                 (scheme, (username, password), host, path, query) => URI {
+                    scheme: scheme.to_string(),
                     authority: Authority {
-                        scheme: scheme.to_string(),
                         host: host.to_string(),
                         username: username.map(|f| f.to_string()),
                         password: password.map(|f| f.to_string()),
                         port: None,
                     },
-                    path: Some(Path {
-                        path: path.into_iter().map(|f| f.to_string()).collect(),
-                    }),
-                    query_string: query.map(|q| QueryString { qs: q }),
+                    path: path.into_iter().map(|f| f.to_string()).collect(),
+                    qs: query,
                 },
             },
         )(input)
