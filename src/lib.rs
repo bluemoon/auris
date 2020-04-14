@@ -26,14 +26,6 @@ pub struct Authority {
     port: Option<u16>,
 }
 
-/// Path e.g. /a/b/c
-// #[derive(Debug, PartialEq)]
-// pub struct Path {}
-
-/// QueryString is the part of a URI which assigns values to specified parameters.
-// #[derive(Debug, PartialEq)]
-// pub struct QueryString {}
-
 /// URI is the whole URI object
 #[derive(Debug, PartialEq)]
 pub struct URI {
@@ -63,7 +55,9 @@ pub mod parsers {
         })(input)
     }
 
-    /// Parse the user credentials from the authority section
+    /// Parse the user credentials from the authority section. We can
+    /// always expect this function to return a tuple of options. Instead of using
+    /// `Option<(Option<&str>, Option<&str>)>`, `(Option<&str>, Option<&str>)` is used
     fn authority_credentials(input: &str) -> IResult<&str, (Option<&str>, Option<&str>)> {
         // user:pw@
         let user_pw_combinator = tuple((cut(alpha1), tag(":"), cut(alpha1), tag("@")));
@@ -86,12 +80,14 @@ pub mod parsers {
         })(input)
     }
 
+    /// Parse a single path chunk
     fn path_part(input: &str) -> IResult<&str, &str> {
         let (remain, (_, chunk)) = tuple((tag("/"), alpha1))(input)?;
         Ok((remain, chunk))
     }
 
-    fn path(input: &str) -> IResult<&str, Vec<&str>> {
+    /// Parse the whole path chunk
+    pub fn path(input: &str) -> IResult<&str, Vec<&str>> {
         // /a/b/c
         many0(path_part)(input)
     }
@@ -101,6 +97,7 @@ pub mod parsers {
         Ok((remain, (key, value)))
     }
 
+    /// Parses ?k=v&k1=v1 into a HashMap
     pub fn query(input: &str) -> IResult<&str, HashMap<String, String>> {
         let (post_q, _) = tag("?")(input)?;
         let (remain, vec) = many0(query_part)(post_q)?;
