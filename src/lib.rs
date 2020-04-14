@@ -124,11 +124,10 @@ pub mod parsers {
     // http://example.com
     // postgres://user:pw@host:5432/db
     pub fn authority(input: &str) -> IResult<&str, Authority> {
-        match all_consuming(tuple((scheme, user_info, take_till(|c| c == '/'))))(input) {
-            Ok((remaining_input, (scheme, (username, password), host))) => Ok((
+        match all_consuming(tuple((authority_credentials, take_till(|c| c == '/'))))(input) {
+            Ok((remaining_input, ((username, password), host))) => Ok((
                 remaining_input,
                 Authority {
-                    scheme: scheme.to_string(),
                     host: host.to_string(),
                     password: password.map(|f| f.to_string()),
                     port: None,
@@ -150,7 +149,7 @@ pub mod parsers {
         map(
             all_consuming(tuple((
                 scheme,
-                user_info,
+                authority_credentials,
                 take_till(|c| c == '/'),
                 path,
                 opt(query),
@@ -164,7 +163,7 @@ pub mod parsers {
                         password: password.map(|f| f.to_string()),
                         port: None,
                     },
-                    path: path.into_iter().map(|f| f.to_string()).collect(),
+                    path: Some(path.into_iter().map(|f| f.to_string()).collect()),
                     qs: query,
                 },
             },
@@ -178,11 +177,10 @@ pub mod parsers {
         #[test]
         fn test_authority() {
             assert_eq!(
-                parsers::authority("postgres://bob:bob@bob:83"),
+                parsers::authority("bob:bob@bob"),
                 Ok((
                     "",
                     Authority {
-                        scheme: "postgres".to_string(),
                         host: "bob".to_string(),
                         password: Some("bob".to_string()),
                         username: Some("bob".to_string()),
@@ -191,11 +189,10 @@ pub mod parsers {
                 ))
             );
             assert_eq!(
-                parsers::authority("a://b"),
+                parsers::authority("b"),
                 Ok((
                     "",
                     Authority {
-                        scheme: "a".to_string(),
                         host: "b".to_string(),
                         password: None,
                         port: None,
@@ -208,7 +205,7 @@ pub mod parsers {
         #[test]
         fn test_user_info() {
             assert_eq!(
-                parsers::user_info("bob:password@host"),
+                parsers::authority_credentials("bob:password@host"),
                 Ok(("host", (Some("bob"), Some("password"))))
             )
         }
@@ -216,7 +213,7 @@ pub mod parsers {
         #[test]
         fn test_bad_user_info() {
             assert_eq!(
-                parsers::user_info("iamnotahost"),
+                parsers::authority_credentials("iamnotahost"),
                 Ok(("iamnotahost", (None, None)))
             )
         }
@@ -235,22 +232,28 @@ pub mod parsers {
 
         #[test]
         fn test_full_absolute_uri() {
+            let query_string_map = [
+                ("i".to_string(), "j".to_string()),
+                ("k".to_string(), "l".to_string()),
+            ]
+            .iter()
+            .cloned()
+            .collect();
+
             assert_eq!(
                 parsers::uri("a://b:c@d.e/f/g/h?i=j&k=l"),
                 Ok((
                     "",
                     URI {
+                        scheme: "a".to_string(),
                         authority: Authority {
-                            scheme: "a".to_string(),
                             host: "d.e".to_string(),
                             username: Some("b".to_string()),
                             password: Some("c".to_string()),
                             port: None
                         },
-                        path: Some(Path {
-                            path: vec!("f".to_string(), "g".to_string(), "h".to_string())
-                        }),
-                        query_string: None
+                        path: Some(vec!("f".to_string(), "g".to_string(), "h".to_string())),
+                        qs: Some(query_string_map)
                     }
                 ))
             )
