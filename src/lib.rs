@@ -3,8 +3,16 @@
 //! - Uses only safe features in rust.
 //! - `rfc2396` & `rfc3986` compliant (incomplete)
 //!
+//! # Usage
+//!
+//! ```
+//! use auris::URI;
+//!
+//! "foo://user:pass@hotdog.com".parse::<URI>();
+//! ```
 extern crate nom;
 
+use core::hash::Hash;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_till},
@@ -17,67 +25,122 @@ use nom::{
 use std::collections::HashMap;
 
 /// Authority section of the URI
-#[derive(Debug, PartialEq)]
-pub struct Authority {
+#[derive(Debug, PartialEq, Eq)]
+pub struct Authority<T>
+where
+    T: Hash + Eq + Ord,
+{
     //TODO(bradford): IPV6, IPV4, DNS enum
-    host: String,
-    username: Option<String>,
-    password: Option<String>,
-    port: Option<u16>,
+    pub host: T,
+    pub username: Option<T>,
+    pub password: Option<T>,
+    pub port: Option<u16>,
 }
 
+impl<'a> Authority<&'a str> {
+    pub fn to_owned(&self) -> Authority<String> {
+        Authority {
+            host: self.host.to_string(),
+            username: self.username.map(|u| u.to_string()),
+            password: self.password.map(|u| u.to_string()),
+            port: self.port,
+        }
+    }
+}
 /// URI is the whole URI object
-#[derive(Debug, PartialEq)]
-pub struct URI {
-    scheme: String,
-    authority: Authority,
-    path: Option<Vec<String>>,
-    qs: Option<HashMap<String, String>>,
+///
+/// # Examples
+///
+/// When parsing whole URIs you can use:
+///
+/// ```
+/// use auris::URI;
+///
+/// ```
+///
+#[derive(Debug, PartialEq, Eq)]
+pub struct URI<T>
+where
+    T: Hash + Eq + Ord,
+{
+    pub scheme: T,
+    pub authority: Authority<T>,
+    pub path: Option<Vec<T>>,
+    pub qs: Option<HashMap<T, T>>,
 }
 
+impl<'a> URI<&'a str> {
+    pub fn to_owned(&self) -> URI<String> {
+        URI {
+            scheme: self.scheme.to_string(),
+            authority: self.authority.to_owned(),
+            path: self
+                .path
+                .map(|opt| opt.into_iter().map(|f| f.to_string()).collect()),
+            qs: self.qs.map(|qs| -> HashMap<String, String> {
+                qs.into_iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect()
+            }),
+        }
+    }
+}
+
+pub enum AurisParseErrorKind {
+    Failed,
+}
+
+pub struct ParseError {
+    kind: AurisParseErrorKind,
+}
+
+/// Parses structure:
+///
+/// ```notrust
+///     foo://example.com:8042/over/there?name=ferret#nose
+///     \_/   \______________/\_________/ \_________/ \__/
+///      |           |            |            |        |
+///   scheme     authority       path        query   fragment
+/// ```
+///
 pub mod parsers {
-    //! Parses structure:
-    //!
-    //!     foo://example.com:8042/over/there?name=ferret#nose
-    //!     \_/   \______________/\_________/ \_________/ \__/
-    //!      |           |            |            |        |
-    //!   scheme     authority       path        query   fragment
-    //!
     use super::*;
 
     /// Parse out the scheme
     fn scheme(input: &str) -> IResult<&str, &str> {
         // postgres://
         // bob://
-        let scheme_tuple = tuple((take_till(|c| c == ':'), tag("://")));
-        map(scheme_tuple, |tuple| match tuple {
-            (scheme, _) => scheme,
-        })(input)
+        let (remaining, scheme_chunk) = take_till(|c| c == ':')(input)?;
+        let (remaining_post_scheme, _) = tag("://")(remaining)?;
+        Ok((remaining_post_scheme, scheme_chunk))
+    }
+
+    fn user_pw_combinator(i: &str) -> IResult<&str, (Option<&str>, Option<&str>)> {
+        // user:pw@
+        let (remain_chunk_1, user) = cut(alpha1)(i)?;
+        let (remain_chunk_2, _) = tag(":")(remain_chunk_1)?;
+        let (remain_chunk_3, password) = cut(alpha1)(remain_chunk_2)?;
+        let (remain_chunk_4, _) = tag("@")(remain_chunk_3)?;
+        Ok((remain_chunk_4, (Some(user), Some(password))))
+    }
+
+    fn user_combinator(input: &str) -> IResult<&str, (Option<&str>, Option<&str>)> {
+        let (remain_chunk_1, user) = cut(alpha1)(input)?;
+        let (remain_chunk_2, _) = tag("@")(remain_chunk_1)?;
+        Ok((remain_chunk_2, (Some(user), None)))
     }
 
     /// Parse the user credentials from the authority section. We can
     /// always expect this function to return a tuple of options. Instead of using
     /// `Option<(Option<&str>, Option<&str>)>`, `(Option<&str>, Option<&str>)` is used
     fn authority_credentials(input: &str) -> IResult<&str, (Option<&str>, Option<&str>)> {
-        // user:pw@
-        let user_pw_combinator = tuple((cut(alpha1), tag(":"), cut(alpha1), tag("@")));
-        let user_pw_tuple = map(user_pw_combinator, |f| match f {
-            (user, _, pw, _) => (Some(user), Some(pw)),
-        });
-
-        // user@
-        let user_combinator = tuple((cut(alpha1), tag("@")));
-        let user_tuple = map(user_combinator, |f| match f {
-            (user, _) => (Some(user), None),
-        });
-
         // The whole statement may fail if there is no match
         // we flatten this out so that you will just get (None, None)
-        let alt_opt = opt(alt((user_pw_tuple, user_tuple)));
-        map(alt_opt, |f: Option<(Option<&str>, Option<&str>)>| match f {
-            Some(tup) => tup,
-            None => (None, None),
-        })(input)
+        let (remain, alt_opt) = opt(alt((user_pw_combinator, user_combinator)))(input)?;
+        match alt_opt {
+            Some(options) => Ok((remain, options)),
+            None => Ok((remain, (None, None))),
+        }
     }
 
     /// Parse a single path chunk
@@ -98,37 +161,38 @@ pub mod parsers {
     }
 
     /// Parses ?k=v&k1=v1 into a HashMap
-    pub fn query(input: &str) -> IResult<&str, HashMap<String, String>> {
+    pub fn query<'a>(input: &'a str) -> IResult<&'a str, HashMap<&'a str, &'a str>> {
         let (post_q, _) = tag("?")(input)?;
         let (remain, vec) = many0(query_part)(post_q)?;
-        Ok((
-            remain,
-            vec.into_iter()
-                .map(|f| match f {
-                    (key, value) => (key.to_string(), value.to_string()),
-                })
-                .collect(),
-        ))
+        Ok((remain, vec.into_iter().collect()))
     }
 
     /// Parses the authority section of the URI
     ///
     /// # Examples
     ///
+    /// Here we parse a full authority segment:
     /// ```
-    /// parsers::authority("bob://bob:pass@bob.com")
+    /// use auris::parsers;
+    /// parsers::authority("bob:pass@bob.com");
+    /// ```
+    ///
+    /// This works with partial segements as well:
+    /// ```
+    /// use auris::parsers;
+    /// parsers::authority("bob@hotdog.com");
     /// ```
     // http://example.com
     // postgres://user:pw@host:5432/db
-    pub fn authority(input: &str) -> IResult<&str, Authority> {
+    pub fn authority(input: &str) -> IResult<&str, Authority<&str>> {
         match all_consuming(tuple((authority_credentials, take_till(|c| c == '/'))))(input) {
             Ok((remaining_input, ((username, password), host))) => Ok((
                 remaining_input,
                 Authority {
-                    host: host.to_string(),
-                    password: password.map(|f| f.to_string()),
+                    host: host,
+                    password: password,
                     port: None,
-                    username: username.map(|f| f.to_string()),
+                    username: username,
                 },
             )),
             Err(e) => Err(e),
@@ -140,9 +204,10 @@ pub mod parsers {
     /// # Examples
     ///
     /// ```
-    /// parsers::uri("scheme://user:pw@host.pizza/path1/path2/?k=v&k1=v1")
+    /// use auris::parsers;
+    /// parsers::uri("scheme://user:pw@host.pizza/path1/path2/?k=v&k1=v1");
     /// ```
-    pub fn uri(input: &str) -> IResult<&str, URI> {
+    pub fn uri(input: &str) -> IResult<&str, URI<&str>> {
         map(
             all_consuming(tuple((
                 scheme,
@@ -153,14 +218,14 @@ pub mod parsers {
             ))),
             |f| match f {
                 (scheme, (username, password), host, path, query) => URI {
-                    scheme: scheme.to_string(),
+                    scheme: scheme,
                     authority: Authority {
-                        host: host.to_string(),
-                        username: username.map(|f| f.to_string()),
-                        password: password.map(|f| f.to_string()),
+                        host: host,
+                        username: username.map(|f| f),
+                        password: password.map(|f| f),
                         port: None,
                     },
-                    path: Some(path.into_iter().map(|f| f.to_string()).collect()),
+                    path: Some(path),
                     qs: query,
                 },
             },
@@ -178,9 +243,9 @@ pub mod parsers {
                 Ok((
                     "",
                     Authority {
-                        host: "bob".to_string(),
-                        password: Some("bob".to_string()),
-                        username: Some("bob".to_string()),
+                        host: "bob".as_ref(),
+                        password: Some("bob".as_ref()),
+                        username: Some("bob".as_ref()),
                         port: None
                     }
                 ))
@@ -190,7 +255,7 @@ pub mod parsers {
                 Ok((
                     "",
                     Authority {
-                        host: "b".to_string(),
+                        host: "b".as_ref(),
                         password: None,
                         port: None,
                         username: None
@@ -229,27 +294,24 @@ pub mod parsers {
 
         #[test]
         fn test_full_absolute_uri() {
-            let query_string_map = [
-                ("i".to_string(), "j".to_string()),
-                ("k".to_string(), "l".to_string()),
-            ]
-            .iter()
-            .cloned()
-            .collect();
+            let query_string_map = [("i".as_ref(), "j".as_ref()), ("k".as_ref(), "l".as_ref())]
+                .iter()
+                .cloned()
+                .collect();
 
             assert_eq!(
                 parsers::uri("a://b:c@d.e/f/g/h?i=j&k=l"),
                 Ok((
                     "",
                     URI {
-                        scheme: "a".to_string(),
+                        scheme: "a".as_ref(),
                         authority: Authority {
-                            host: "d.e".to_string(),
-                            username: Some("b".to_string()),
-                            password: Some("c".to_string()),
+                            host: "d.e".as_ref(),
+                            username: Some("b".as_ref()),
+                            password: Some("c".as_ref()),
                             port: None
                         },
-                        path: Some(vec!("f".to_string(), "g".to_string(), "h".to_string())),
+                        path: Some(vec!("f".as_ref(), "g".as_ref(), "h".as_ref())),
                         qs: Some(query_string_map)
                     }
                 ))

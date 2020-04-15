@@ -10,5 +10,12 @@ description = "A simple (incomplete) URI parser"
 [dependencies]
 nom = "5.1.1"
 
-[lib]
-doctest = false
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "uri_parse"
+harness = false
+
+[profile.release]
+debug = true
