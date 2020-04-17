@@ -6,9 +6,9 @@
 //! # Usage
 //!
 //! ```
-//! use auris::URI;
+//! use auris::parsers;
 //!
-//! "foo://user:pass@hotdog.com".parse::<URI>();
+//! parsers::uri("https://crates.io/crates/auris");
 //! ```
 extern crate nom;
 
@@ -23,30 +23,26 @@ use nom::{
     IResult,
 };
 use std::collections::HashMap;
+use std::str::FromStr;
+
+pub enum AurisParseErrorKind {
+    Failed,
+}
+
+pub struct ParseError {
+    kind: AurisParseErrorKind,
+}
 
 /// Authority section of the URI
 #[derive(Debug, PartialEq, Eq)]
-pub struct Authority<T>
-where
-    T: Hash + Eq + Ord,
-{
+pub struct Authority<'a> {
     //TODO(bradford): IPV6, IPV4, DNS enum
-    pub host: T,
-    pub username: Option<T>,
-    pub password: Option<T>,
+    pub host: &'a str,
+    pub username: Option<&'a str>,
+    pub password: Option<&'a str>,
     pub port: Option<u16>,
 }
 
-impl<'a> Authority<&'a str> {
-    pub fn to_owned(&self) -> Authority<String> {
-        Authority {
-            host: self.host.to_string(),
-            username: self.username.map(|u| u.to_string()),
-            password: self.password.map(|u| u.to_string()),
-            port: self.port,
-        }
-    }
-}
 /// URI is the whole URI object
 ///
 /// # Examples
@@ -59,39 +55,11 @@ impl<'a> Authority<&'a str> {
 /// ```
 ///
 #[derive(Debug, PartialEq, Eq)]
-pub struct URI<T>
-where
-    T: Hash + Eq + Ord,
-{
-    pub scheme: T,
-    pub authority: Authority<T>,
-    pub path: Option<Vec<T>>,
-    pub qs: Option<HashMap<T, T>>,
-}
-
-impl<'a> URI<&'a str> {
-    pub fn to_owned(&self) -> URI<String> {
-        URI {
-            scheme: self.scheme.to_string(),
-            authority: self.authority.to_owned(),
-            path: self
-                .path
-                .map(|opt| opt.into_iter().map(|f| f.to_string()).collect()),
-            qs: self.qs.map(|qs| -> HashMap<String, String> {
-                qs.into_iter()
-                    .map(|(k, v)| (k.to_string(), v.to_string()))
-                    .collect()
-            }),
-        }
-    }
-}
-
-pub enum AurisParseErrorKind {
-    Failed,
-}
-
-pub struct ParseError {
-    kind: AurisParseErrorKind,
+pub struct URI<'a> {
+    pub scheme: &'a str,
+    pub authority: Authority<'a>,
+    pub path: Option<Vec<&'a str>>,
+    pub qs: Option<HashMap<&'a str, &'a str>>,
 }
 
 /// Parses structure:
@@ -184,7 +152,7 @@ pub mod parsers {
     /// ```
     // http://example.com
     // postgres://user:pw@host:5432/db
-    pub fn authority(input: &str) -> IResult<&str, Authority<&str>> {
+    pub fn authority(input: &str) -> IResult<&str, Authority> {
         match all_consuming(tuple((authority_credentials, take_till(|c| c == '/'))))(input) {
             Ok((remaining_input, ((username, password), host))) => Ok((
                 remaining_input,
@@ -207,7 +175,7 @@ pub mod parsers {
     /// use auris::parsers;
     /// parsers::uri("scheme://user:pw@host.pizza/path1/path2/?k=v&k1=v1");
     /// ```
-    pub fn uri(input: &str) -> IResult<&str, URI<&str>> {
+    pub fn uri(input: &str) -> IResult<&str, URI> {
         map(
             all_consuming(tuple((
                 scheme,
