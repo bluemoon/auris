@@ -65,7 +65,7 @@ impl Authority<&str> {
 ///
 /// ```
 /// use auris::URI;
-///
+/// "http://bob.com".parse::<URI<String>>();
 /// ```
 ///
 #[derive(Debug, PartialEq, Eq)]
@@ -92,6 +92,19 @@ impl URI<&str> {
                 qs.into_iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect()
+            }),
+        }
+    }
+}
+
+impl FromStr for URI<String> {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match parsers::uri(s) {
+            Ok((_, obj)) => Ok(obj.to_owned()),
+            Err(_) => Err(ParseError {
+                kind: AurisParseErrorKind::Failed,
             }),
         }
     }
