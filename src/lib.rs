@@ -35,12 +35,26 @@ pub struct ParseError {
 
 /// Authority section of the URI
 #[derive(Debug, PartialEq, Eq)]
-pub struct Authority<'a> {
+pub struct Authority<T>
+where
+    T: Ord + Hash,
+{
     //TODO(bradford): IPV6, IPV4, DNS enum
-    pub host: &'a str,
-    pub username: Option<&'a str>,
-    pub password: Option<&'a str>,
+    pub host: T,
+    pub username: Option<T>,
+    pub password: Option<T>,
     pub port: Option<u16>,
+}
+
+impl Authority<&str> {
+    fn to_owned(&self) -> Authority<String> {
+        Authority {
+            host: self.host.to_string(),
+            username: self.username.map(|u| u.to_string()),
+            password: self.password.map(|p| p.to_string()),
+            port: self.port,
+        }
+    }
 }
 
 /// URI is the whole URI object
@@ -55,11 +69,32 @@ pub struct Authority<'a> {
 /// ```
 ///
 #[derive(Debug, PartialEq, Eq)]
-pub struct URI<'a> {
-    pub scheme: &'a str,
-    pub authority: Authority<'a>,
-    pub path: Option<Vec<&'a str>>,
-    pub qs: Option<HashMap<&'a str, &'a str>>,
+pub struct URI<T>
+where
+    T: Ord + Hash,
+{
+    pub scheme: T,
+    pub authority: Authority<T>,
+    pub path: Option<Vec<T>>,
+    pub qs: Option<HashMap<T, T>>,
+}
+
+impl URI<&str> {
+    fn to_owned(&self) -> URI<String> {
+        URI {
+            scheme: self.scheme.to_owned(),
+            authority: self.authority.to_owned(),
+            path: self
+                .path
+                .as_ref()
+                .map(|p| p.into_iter().map(|f| String::from(*f)).collect()),
+            qs: self.qs.as_ref().map(|qs| {
+                qs.into_iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect()
+            }),
+        }
+    }
 }
 
 /// Parses structure:
@@ -152,7 +187,7 @@ pub mod parsers {
     /// ```
     // http://example.com
     // postgres://user:pw@host:5432/db
-    pub fn authority(input: &str) -> IResult<&str, Authority> {
+    pub fn authority(input: &str) -> IResult<&str, Authority<&str>> {
         match all_consuming(tuple((authority_credentials, take_till(|c| c == '/'))))(input) {
             Ok((remaining_input, ((username, password), host))) => Ok((
                 remaining_input,
@@ -175,7 +210,7 @@ pub mod parsers {
     /// use auris::parsers;
     /// parsers::uri("scheme://user:pw@host.pizza/path1/path2/?k=v&k1=v1");
     /// ```
-    pub fn uri(input: &str) -> IResult<&str, URI> {
+    pub fn uri(input: &str) -> IResult<&str, URI<&str>> {
         map(
             all_consuming(tuple((
                 scheme,
