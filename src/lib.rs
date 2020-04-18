@@ -87,10 +87,10 @@ impl URI<&str> {
             path: self
                 .path
                 .as_ref()
-                .map(|p| p.into_iter().map(|f| String::from(*f)).collect()),
+                .map(|p| p.iter().map(|f| String::from(*f)).collect()),
             qs: self.qs.as_ref().map(|qs| {
-                qs.into_iter()
-                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                qs.iter()
+                    .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
                     .collect()
             }),
         }
@@ -205,10 +205,10 @@ pub mod parsers {
             Ok((remaining_input, ((username, password), host))) => Ok((
                 remaining_input,
                 Authority {
-                    host: host,
-                    password: password,
+                    host,
+                    password,
                     port: None,
-                    username: username,
+                    username,
                 },
             )),
             Err(e) => Err(e),
@@ -234,9 +234,9 @@ pub mod parsers {
             ))),
             |f| match f {
                 (scheme, (username, password), host, path, query) => URI {
-                    scheme: scheme,
+                    scheme,
                     authority: Authority {
-                        host: host,
+                        host,
                         username: username.map(|f| f),
                         password: password.map(|f| f),
                         port: None,
