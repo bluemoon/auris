@@ -16,7 +16,7 @@ use core::hash::Hash;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_till},
-    character::complete::alpha1,
+    character::complete::{alpha1, digit1},
     combinator::{all_consuming, cut, map, opt},
     multi::many0,
     sequence::tuple,
@@ -87,7 +87,7 @@ impl URI<&str> {
             path: self
                 .path
                 .as_ref()
-                .map(|p| p.iter().map(|f| String::from(*f)).collect()),
+                .map(|p: &Vec<&str>| p.iter().map(|f| String::from(*f)).collect()),
             qs: self.qs.as_ref().map(|qs| {
                 qs.iter()
                     .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
@@ -140,10 +140,27 @@ pub mod parsers {
         Ok((remain_chunk_4, (Some(user), Some(password))))
     }
 
+    /// Parse user string without a password
     fn user_combinator(input: &str) -> IResult<&str, (Option<&str>, Option<&str>)> {
         let (remain_chunk_1, user) = cut(alpha1)(input)?;
         let (remain_chunk_2, _) = tag("@")(remain_chunk_1)?;
         Ok((remain_chunk_2, (Some(user), None)))
+    }
+
+    fn port_combinator(input: &str) -> IResult<&str, Option<u16>> {
+        let (remain_chunk_1, _) = tag(":")(input)?;
+        let digits: IResult<&str, &str> = digit1(remain_chunk_1);
+        match digits {
+            Ok((remain, digits)) => Ok((remain, Some(digits.parse::<u16>().unwrap()))),
+            Err(e) => Ok((remain_chunk_1, None)),
+        }
+    }
+
+    fn host_port_combinator(input: &str) -> IResult<&str, (&str, Option<u16>)> {
+        // asdf.com:1234
+        let (remain_chunk_1, host) = cut(alpha1)(input)?;
+        let (remain_chunk_2, port) = port_combinator(remain_chunk_1)?;
+        Ok((remain_chunk_2, (host, port)))
     }
 
     /// Parse the user credentials from the authority section. We can
@@ -201,13 +218,13 @@ pub mod parsers {
     // http://example.com
     // postgres://user:pw@host:5432/db
     pub fn authority(input: &str) -> IResult<&str, Authority<&str>> {
-        match all_consuming(tuple((authority_credentials, take_till(|c| c == '/'))))(input) {
-            Ok((remaining_input, ((username, password), host))) => Ok((
+        match all_consuming(tuple((authority_credentials, host_port_combinator)))(input) {
+            Ok((remaining_input, ((username, password), (host, port)))) => Ok((
                 remaining_input,
                 Authority {
                     host,
                     password,
-                    port: None,
+                    port,
                     username,
                 },
             )),
@@ -228,18 +245,18 @@ pub mod parsers {
             all_consuming(tuple((
                 scheme,
                 authority_credentials,
-                take_till(|c| c == '/'),
+                host_port_combinator,
                 path,
                 opt(query),
             ))),
             |f| match f {
-                (scheme, (username, password), host, path, query) => URI {
+                (scheme, (username, password), (host, port), path, query) => URI {
                     scheme,
                     authority: Authority {
                         host,
-                        username: username.map(|f| f),
-                        password: password.map(|f| f),
-                        port: None,
+                        username,
+                        password,
+                        port,
                     },
                     path: Some(path),
                     qs: query,
