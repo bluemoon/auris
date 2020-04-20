@@ -23,6 +23,7 @@ use nom::{
     IResult,
 };
 use std::collections::HashMap;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
 pub enum AurisParseErrorKind {
@@ -110,6 +111,13 @@ impl FromStr for URI<String> {
     }
 }
 
+// The host name of an URL.
+pub enum Host<S = String> {
+    Domain(S),
+    Ipv4(Ipv4Addr),
+    Ipv6(Ipv6Addr),
+}
+
 /// Parses structure:
 ///
 /// ```notrust
@@ -131,42 +139,40 @@ pub mod parsers {
         Ok((remaining_post_scheme, scheme_chunk))
     }
 
-    fn user_pw_combinator(i: &str) -> IResult<&str, (Option<&str>, Option<&str>)> {
-        // user:pw@
-        let (remain_chunk_1, user) = cut(alpha1)(i)?;
-        let (remain_chunk_2, _) = tag(":")(remain_chunk_1)?;
-        let (remain_chunk_3, password) = cut(alpha1)(remain_chunk_2)?;
-        let (remain_chunk_4, _) = tag("@")(remain_chunk_3)?;
-        Ok((remain_chunk_4, (Some(user), Some(password))))
-    }
-
-    /// Parse user string without a password
-    fn user_combinator(input: &str) -> IResult<&str, (Option<&str>, Option<&str>)> {
-        let (remain_chunk_1, user) = cut(alpha1)(input)?;
-        let (remain_chunk_2, _) = tag("@")(remain_chunk_1)?;
-        Ok((remain_chunk_2, (Some(user), None)))
-    }
-
-    fn port_combinator(input: &str) -> IResult<&str, Option<u16>> {
+    fn port_combinator(input: &str) -> IResult<&str, u16> {
         let (remain_chunk_1, _) = tag(":")(input)?;
-        let digits: IResult<&str, &str> = digit1(remain_chunk_1);
-        match digits {
-            Ok((remain, digits)) => Ok((remain, Some(digits.parse::<u16>().unwrap()))),
-            Err(e) => Ok((remain_chunk_1, None)),
-        }
+        let (remain_chunk_2, digits) = digit1(remain_chunk_1)?;
+        Ok((remain_chunk_2, digits.parse::<u16>().unwrap()))
     }
 
     fn host_port_combinator(input: &str) -> IResult<&str, (&str, Option<u16>)> {
         // asdf.com:1234
-        let (remain_chunk_1, host) = cut(alpha1)(input)?;
-        let (remain_chunk_2, port) = port_combinator(remain_chunk_1)?;
+        let (remain_chunk_1, host) = alt((tag("."), alpha1))(input)?;
+        let (remain_chunk_2, port) = opt(port_combinator)(remain_chunk_1)?;
         Ok((remain_chunk_2, (host, port)))
     }
 
     /// Parse the user credentials from the authority section. We can
     /// always expect this function to return a tuple of options. Instead of using
     /// `Option<(Option<&str>, Option<&str>)>`, `(Option<&str>, Option<&str>)` is used
-    fn authority_credentials(input: &str) -> IResult<&str, (Option<&str>, Option<&str>)> {
+    fn authority_credentials<'a>(
+        input: &'a str,
+    ) -> IResult<&'a str, (Option<&'a str>, Option<&'a str>)> {
+        let user_pw_combinator = |i: &'a str| -> IResult<&str, (Option<&str>, Option<&str>)> {
+            // user:pw@
+            let (remain_chunk_1, user) = cut(alpha1)(i)?;
+            let (remain_chunk_2, _) = tag(":")(remain_chunk_1)?;
+            let (remain_chunk_3, password) = cut(alpha1)(remain_chunk_2)?;
+            let (remain_chunk_4, _) = tag("@")(remain_chunk_3)?;
+            Ok((remain_chunk_4, (Some(user), Some(password))))
+        };
+
+        // Parse user string without a password
+        let user_combinator = |i: &'a str| -> IResult<&str, (Option<&str>, Option<&str>)> {
+            let (remain_chunk_1, user) = cut(alpha1)(i)?;
+            let (remain_chunk_2, _) = tag("@")(remain_chunk_1)?;
+            Ok((remain_chunk_2, (Some(user), None)))
+        };
         // The whole statement may fail if there is no match
         // we flatten this out so that you will just get (None, None)
         let (remain, alt_opt) = opt(alt((user_pw_combinator, user_combinator)))(input)?;
@@ -176,27 +182,26 @@ pub mod parsers {
         }
     }
 
-    /// Parse a single path chunk
-    fn path_part(input: &str) -> IResult<&str, &str> {
-        let (remain, (_, chunk)) = tuple((tag("/"), alpha1))(input)?;
-        Ok((remain, chunk))
-    }
-
     /// Parse the whole path chunk
-    pub fn path(input: &str) -> IResult<&str, Vec<&str>> {
+    pub fn path<'a>(input: &'a str) -> IResult<&'a str, Vec<&'a str>> {
+        /// Parse a single path chunk
+        let path_part = |i: &'a str| -> IResult<&str, &str> {
+            let (remain, (_, chunk)) = tuple((tag("/"), alpha1))(i)?;
+            Ok((remain, chunk))
+        };
         // /a/b/c
         many0(path_part)(input)
     }
 
-    fn query_part(input: &str) -> IResult<&str, (&str, &str)> {
-        let (remain, (key, _, value, _)) = tuple((alpha1, tag("="), alpha1, opt(tag("&"))))(input)?;
-        Ok((remain, (key, value)))
-    }
-
     /// Parses ?k=v&k1=v1 into a HashMap
     pub fn query<'a>(input: &'a str) -> IResult<&'a str, HashMap<&'a str, &'a str>> {
+        let part = |i: &'a str| -> IResult<&str, (&str, &str)> {
+            let (remain, (key, _, value, _)) = tuple((alpha1, tag("="), alpha1, opt(tag("&"))))(i)?;
+            Ok((remain, (key, value)))
+        };
+
         let (post_q, _) = tag("?")(input)?;
-        let (remain, vec) = many0(query_part)(post_q)?;
+        let (remain, vec) = many0(part)(post_q)?;
         Ok((remain, vec.into_iter().collect()))
     }
 

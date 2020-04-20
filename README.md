@@ -6,6 +6,7 @@
 ## Todo
 
 - [x] Ports
-- Parsing IPv4, IPv6
-- Parsing tags
-- quickcheck?
+- [ ] Domains with .
+- [ ] Parsing IPv4, IPv6
+- [ ] Parsing fragments
+- [ ] QuickCheck?
