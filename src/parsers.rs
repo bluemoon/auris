@@ -45,11 +45,6 @@ pub fn scheme(input: &str) -> IResult<&str, &str> {
     Ok((remaining_post_scheme, scheme_chunk))
 }
 
-#[inline]
-fn is_domain(chr: u8) -> bool {
-    is_alphabetic(chr) || is_digit(chr) || chr == b':' || chr == b'.'
-}
-
 fn host_port_combinator<'a>(input: &'a str) -> IResult<&'a str, (&'a str, Option<u16>)> {
     let port_combinator = |i: &'a str| -> IResult<&str, u16> {
         let (remain_chunk_1, _) = tag(":")(i)?;

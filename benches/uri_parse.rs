@@ -5,7 +5,7 @@ use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("URI Parsing");
 
-    let string = "foo://user:pass@hotdog.com";
+    let string = "foo://user:pass@hotdog.com/bob?a=b&c=d";
     let size = string.len() as u32;
     group.throughput(Throughput::Elements(size as u64));
 
