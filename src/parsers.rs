@@ -2,7 +2,6 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_till},
     character::complete::{alpha1, digit1},
-    character::{is_alphabetic, is_digit},
     combinator::{all_consuming, cut, map, opt},
     multi::many0,
     sequence::tuple,

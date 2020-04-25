@@ -56,7 +56,7 @@ impl Authority<&str> {
 ///
 /// # Examples
 ///
-/// When parsing whole URIs you can use:
+/// When parsing whole URIs:
 ///
 /// ```
 /// use auris::URI;
