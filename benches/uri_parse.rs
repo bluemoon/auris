@@ -7,6 +7,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let string = "foo://user:pass@hotdog.com/bob?a=b&c=d";
     let size = string.len() as u32;
+    let _f = uri(string);
     group.throughput(Throughput::Elements(size as u64));
 
     group.bench_function("parsers::uri", |b| {

@@ -2,7 +2,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_till},
     character::complete::{alpha1, digit1},
-    combinator::{all_consuming, cut, map, opt},
+    combinator::{all_consuming, cut, opt},
     multi::many0,
     sequence::tuple,
     IResult,
@@ -110,7 +110,13 @@ pub fn query<'a>(input: &'a str) -> IResult<&'a str, HashMap<&'a str, &'a str>> 
 
     let (post_q, _) = tag("?")(input)?;
     let (remain, vec) = many0(part)(post_q)?;
-    Ok((remain, vec.into_iter().collect()))
+
+    let mut map: HashMap<&str, &str> = HashMap::with_capacity(vec.len());
+    for (k, v) in vec.into_iter() {
+        map.insert(k, v);
+    }
+    //vec.into_iter().map(|(k, v)| map.entry(k).or_insert(v));
+    Ok((remain, map))
 }
 
 /// Parses the authority section of the URI
@@ -154,28 +160,26 @@ pub fn authority(input: &str) -> IResult<&str, Authority<&str>> {
 /// parsers::uri("scheme://user:pw@host.pizza/path1/path2/?k=v&k1=v1");
 /// ```
 pub fn uri(input: &str) -> IResult<&str, URI<&str>> {
-    map(
-        all_consuming(tuple((
+    let (i, scheme) = scheme(input)?;
+    let (i, (username, password)) = authority_credentials(i)?;
+    let (i, (host, port)) = host_port_combinator(i)?;
+    let (i, path) = path(i)?;
+    let (i, query) = opt(query)(i)?;
+
+    Ok((
+        i,
+        URI {
             scheme,
-            authority_credentials,
-            host_port_combinator,
-            path,
-            opt(query),
-        ))),
-        |f| match f {
-            (scheme, (username, password), (host, port), path, query) => URI {
-                scheme,
-                authority: Authority {
-                    host,
-                    username,
-                    password,
-                    port,
-                },
-                path: Some(path),
-                qs: query,
+            authority: Authority {
+                host,
+                username,
+                password,
+                port,
             },
+            path: Some(path),
+            qs: query,
         },
-    )(input)
+    ))
 }
 
 #[cfg(test)]
