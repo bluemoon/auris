@@ -14,19 +14,11 @@ extern crate nom;
 use std::str;
 
 use core::hash::Hash;
-use nom::{
-    branch::alt,
-    bytes::complete::{tag, take_till, take_while},
-    character::complete::{alpha1, digit1},
-    character::{is_alphabetic, is_digit},
-    combinator::{all_consuming, cut, map, opt},
-    multi::{many0, many_till},
-    sequence::tuple,
-    IResult,
-};
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
+
+pub mod parsers;
 
 pub enum AurisParseErrorKind {
     Failed,

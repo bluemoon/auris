@@ -6,7 +6,7 @@
 ## Todo
 
 - [x] Ports
-- [ ] Split up into multiple files
+- [x] Split up into multiple files
 - [ ] Domains with .
 - [ ] Parsing IPv4, IPv6
 - [ ] Parsing fragments

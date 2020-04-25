@@ -1,13 +1,18 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_till, take_while},
+    bytes::complete::{tag, take_till},
     character::complete::{alpha1, digit1},
     character::{is_alphabetic, is_digit},
     combinator::{all_consuming, cut, map, opt},
-    multi::{many0, many_till},
+    multi::many0,
     sequence::tuple,
     IResult,
 };
+
+use crate::{Authority, URI};
+use std::collections::HashMap;
+use std::str;
+
 /// Parses structure:
 ///
 /// ```notrust
@@ -17,7 +22,6 @@ use nom::{
 ///   scheme     authority       path        query   fragment
 /// ```
 ///
-pub mod parsers;
 
 /// Parse out the scheme
 ///
@@ -25,9 +29,9 @@ pub mod parsers;
 ///
 /// ```
 /// use auris::parsers;
-/// parsers.scheme("bob+postgres://");
-/// parsers.scheme("bob-postgres://");
-/// parsers.scheme("bob.postgres://");
+/// parsers::scheme("bob+postgres://");
+/// parsers::scheme("bob-postgres://");
+/// parsers::scheme("bob.postgres://");
 /// ```
 ///
 // Guidelines for URL schemes
@@ -42,24 +46,24 @@ pub fn scheme(input: &str) -> IResult<&str, &str> {
 }
 
 #[inline]
-pub fn is_domain(chr: u8) -> bool {
+fn is_domain(chr: u8) -> bool {
     is_alphabetic(chr) || is_digit(chr) || chr == b':' || chr == b'.'
 }
 
-fn host_port_combinator(input: &str) -> IResult<&str, (&str, Option<u16>)> {
-    let port_combinator = |i: &str| -> IResult<&str, u16> {
+fn host_port_combinator<'a>(input: &'a str) -> IResult<&'a str, (&'a str, Option<u16>)> {
+    let port_combinator = |i: &'a str| -> IResult<&str, u16> {
         let (remain_chunk_1, _) = tag(":")(i)?;
         let (remain_chunk_2, digits) = digit1(remain_chunk_1)?;
         Ok((remain_chunk_2, digits.parse::<u16>().unwrap()))
     };
 
-    let i_bytes = input.as_bytes();
-    // asdf.com:1234
-    let (i, host) = take_while(is_domain)(i_bytes)?;
+    let domain =
+        |i: &'a str| -> IResult<&'a str, &'a str> { take_till(|c| c == '/' || c == '?')(i) };
 
-    let i = &String::from_utf8(&i[..]).unwrap();
+    // asdf.com:1234
+    let (i, host) = domain(input)?;
     let (i, port) = opt(port_combinator)(i)?;
-    Ok((remain_chunk_2, (host, port)))
+    Ok((i, (host, port)))
 }
 
 /// Parse the user credentials from the authority section. We can
@@ -94,7 +98,7 @@ fn authority_credentials<'a>(
 
 /// Parse the whole path chunk
 pub fn path<'a>(input: &'a str) -> IResult<&'a str, Vec<&'a str>> {
-    /// Parse a single path chunk
+    // Parse a single path chunk
     let path_part = |i: &'a str| -> IResult<&str, &str> {
         let (remain, (_, chunk)) = tuple((tag("/"), alpha1))(i)?;
         Ok((remain, chunk))
@@ -187,7 +191,7 @@ mod test {
     #[test]
     fn test_authority() {
         assert_eq!(
-            parsers::authority("bob:bob@bob"),
+            authority("bob:bob@bob"),
             Ok((
                 "",
                 Authority {
@@ -199,7 +203,7 @@ mod test {
             ))
         );
         assert_eq!(
-            parsers::authority("b"),
+            authority("b"),
             Ok((
                 "",
                 Authority {
@@ -215,7 +219,7 @@ mod test {
     #[test]
     fn test_user_info() {
         assert_eq!(
-            parsers::authority_credentials("bob:password@host"),
+            authority_credentials("bob:password@host"),
             Ok(("host", (Some("bob"), Some("password"))))
         )
     }
@@ -223,8 +227,8 @@ mod test {
     #[test]
     fn test_bad_user_info() {
         assert_eq!(
-            parsers::authority_credentials("iamnotahost.com"),
-            Ok(("iamnotahost", (None, None)))
+            authority_credentials("iamnotahost.com"),
+            Ok(("iamnotahost.com", (None, None)))
         )
     }
 
@@ -232,7 +236,7 @@ mod test {
     fn test_path() {
         let matched_path = vec!["f", "g", "h"];
         assert_eq!(
-            parsers::path("/f/g/h?i=h"),
+            path("/f/g/h?i=h"),
             Ok((
                 "?i=h",
                 matched_path.into_iter().map(|f| f.as_ref()).collect()
@@ -248,7 +252,7 @@ mod test {
             .collect();
 
         assert_eq!(
-            parsers::uri("a://b:c@d.e/f/g/h?i=j&k=l"),
+            uri("a://b:c@d.e/f/g/h?i=j&k=l"),
             Ok((
                 "",
                 URI {
