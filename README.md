@@ -5,6 +5,38 @@
 - Uses only safe features in rust
 - Working towards `rfc2396` & `rfc3986` compliance
 
+## Parses structure:
+
+```notrust
+    foo://example.com:8042/over/there?name=ferret#nose
+    \_/   \______________/\_________/ \_________/ \__/
+     |           |            |            |        |
+  scheme     authority       path        query   fragment
+```
+
+## Usage
+
+```rust
+use auris::URI;
+
+"postgres://user:password@host".parse::<URI<String>>();
+
+"https://crates.io/crates/auris".parse::<URI<String>>();
+```
+
+### Query strings
+
+We also parse query strings into HashMaps:
+
+```rust
+"postgres://user:password@example.com/db?replication=true".parse::<URI<String>>();
+```
+
+In the case of duplicated query string tags the last one wins:
+```rust
+"scheme://host/path?a=1&a=2".parse::<URI<String>>();
+```
+
 ## Todo
 
 - [x] Ports
