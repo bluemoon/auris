@@ -5,7 +5,7 @@
 - Uses only safe features in rust
 - Working towards `rfc2396` & `rfc3986` compliance
 
-## Parses structure:
+### Parses structure:
 
 ```notrust
     foo://example.com:8042/over/there?name=ferret#nose
@@ -13,6 +13,7 @@
      |           |            |            |        |
   scheme     authority       path        query   fragment
 ```
+
 
 ## Usage
 
@@ -36,6 +37,9 @@ In the case of duplicated query string tags the last one wins:
 ```rust
 "scheme://host/path?a=1&a=2".parse::<URI<String>>();
 ```
+
+## Documentation
+- https://docs.rs/auris
 
 ## Todo
 
