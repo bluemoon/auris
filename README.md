@@ -7,7 +7,7 @@
 
 - [x] Ports
 - [x] Split up into multiple files
-- [ ] Domains with .
+- [x] Domains with .
 - [ ] Parsing IPv4, IPv6
 - [ ] Parsing fragments
 - [ ] Percent encoding and decoding

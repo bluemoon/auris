@@ -15,6 +15,7 @@ use std::str;
 
 use core::hash::Hash;
 use std::collections::HashMap;
+use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
@@ -26,6 +27,14 @@ pub enum AurisParseErrorKind {
 
 pub struct ParseError {
     kind: AurisParseErrorKind,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.kind {
+            AurisParseErrorKind::Failed => write!(f, "Parsing failed"),
+        }
+    }
 }
 
 /// Authority section of the URI
