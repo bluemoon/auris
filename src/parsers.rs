@@ -12,16 +12,6 @@ use crate::{Authority, URI};
 use std::collections::HashMap;
 use std::str;
 
-/// Parses structure:
-///
-/// ```notrust
-///     foo://example.com:8042/over/there?name=ferret#nose
-///     \_/   \______________/\_________/ \_________/ \__/
-///      |           |            |            |        |
-///   scheme     authority       path        query   fragment
-/// ```
-///
-
 /// Parse out the scheme
 ///
 /// # Examples

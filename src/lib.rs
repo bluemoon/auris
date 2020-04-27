@@ -3,12 +3,39 @@
 //! - Uses only safe features in rust.
 //! - `rfc2396` & `rfc3986` compliant (incomplete)
 //!
+//!
+//! ## Parses structure:
+//!
+//! ```notrust
+//!     foo://example.com:8042/over/there?name=ferret#nose
+//!     \_/   \______________/\_________/ \_________/ \__/
+//!      |           |            |            |        |
+//!   scheme     authority       path        query   fragment
+//! ```
+//!
 //! # Usage
 //!
 //! ```
-//! use auris::parsers;
+//! use auris::URI;
 //!
-//! parsers::uri("https://crates.io/crates/auris");
+//! "postgres://user:password@host".parse::<URI<String>>();
+//!
+//! "https://crates.io/crates/auris".parse::<URI<String>>();
+//! ```
+//!
+//! ## Query strings
+//!
+//! We also parse query strings into HashMaps:
+//!
+//! ```
+//! # use auris::URI;
+//! "postgres://user:password@example.com/db?replication=true".parse::<URI<String>>();
+//! ```
+//!
+//! In the case of duplicated query string tags the last one wins:
+//! ```
+//! # use auris::URI;
+//! "scheme://host/path?a=1&a=2".parse::<URI<String>>();
 //! ```
 extern crate nom;
 use std::str;
@@ -21,10 +48,12 @@ use std::str::FromStr;
 
 pub mod parsers;
 
+#[derive(Debug)]
 pub enum AurisParseErrorKind {
     Failed,
 }
 
+#[derive(Debug)]
 pub struct ParseError {
     kind: AurisParseErrorKind,
 }
@@ -111,6 +140,22 @@ impl FromStr for URI<String> {
                 kind: AurisParseErrorKind::Failed,
             }),
         }
+    }
+}
+/// Converts the URI struct back to a string
+///
+/// # Examples
+/// ```
+/// use auris::URI;
+///
+/// let parsed = "http://bob.com".parse::<URI<String>>().unwrap();
+///
+/// assert_eq!("http://bob.com",
+///     format!("{}", parsed));
+///
+impl fmt::Display for URI<String> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}://", self.scheme)
     }
 }
 
