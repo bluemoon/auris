@@ -70,14 +70,16 @@ impl fmt::Display for ParseError {
 #[derive(Debug, PartialEq, Eq)]
 pub enum UserInfo<T> {
     User(T),
-    UserAndPassword(T, T)
+    UserAndPassword(T, T),
 }
 
 impl UserInfo<&str> {
     fn to_owned(&self) -> UserInfo<String> {
         match self {
             UserInfo::User(d) => UserInfo::User((*d).to_string()),
-            UserInfo::UserAndPassword(u, p) => UserInfo::UserAndPassword((*u).to_string(), (*p).to_string())
+            UserInfo::UserAndPassword(u, p) => {
+                UserInfo::UserAndPassword((*u).to_string(), (*p).to_string())
+            }
         }
     }
 }
@@ -86,7 +88,7 @@ impl fmt::Display for UserInfo<String> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             UserInfo::User(user) => write!(f, "{}", user),
-            UserInfo::UserAndPassword(user, password) => write!(f, "{}:{}", user, password)
+            UserInfo::UserAndPassword(user, password) => write!(f, "{}:{}", user, password),
         }
     }
 }

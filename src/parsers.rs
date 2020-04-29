@@ -196,7 +196,13 @@ mod test {
     fn test_user_info() {
         assert_eq!(
             authority_credentials("bob:password@host"),
-            Ok(("host", Some(UserInfo::UserAndPassword("bob".as_ref(), "password".as_ref()))))
+            Ok((
+                "host",
+                Some(UserInfo::UserAndPassword(
+                    "bob".as_ref(),
+                    "password".as_ref()
+                ))
+            ))
         )
     }
 
