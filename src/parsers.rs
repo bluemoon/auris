@@ -50,9 +50,7 @@ fn host_port_combinator<'a>(input: &'a str) -> IResult<&'a str, (&'a str, Option
     Ok((i, (host, port)))
 }
 
-/// Parse the user credentials from the authority section. We can
-/// always expect this function to return a tuple of options. Instead of using
-/// `Option<(Option<&str>, Option<&str>)>`, `(Option<&str>, Option<&str>)` is used
+/// Parse the user credentials from the authority section.
 fn authority_credentials<'a>(input: &'a str) -> IResult<&'a str, Option<UserInfo<&'a str>>> {
     let user_pw_combinator = |i: &'a str| -> IResult<&str, UserInfo<&str>> {
         // user:pw@

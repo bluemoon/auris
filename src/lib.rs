@@ -76,8 +76,8 @@ pub enum UserInfo<T> {
 impl UserInfo<&str> {
     fn to_owned(&self) -> UserInfo<String> {
         match self {
-            UserInfo::User(d) => UserInfo::User(d.to_string()),
-            UserInfo::UserAndPassword(u, p) => UserInfo::UserAndPassword(u.to_string(), p.to_string())
+            UserInfo::User(d) => UserInfo::User((*d).to_string()),
+            UserInfo::UserAndPassword(u, p) => UserInfo::UserAndPassword((*u).to_string(), (*p).to_string())
         }
     }
 }
