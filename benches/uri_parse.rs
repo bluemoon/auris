@@ -14,5 +14,20 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, criterion_benchmark);
+fn bench_f(c: &mut Criterion) {
+    let mut group = c.benchmark_group("My own parser ffuu");
+
+    let string = "foo://user:pass@hotdog.com";
+    group.bench_function("parsers::uri", |b| {
+        b.iter(|| auris::parsers::f(string));
+    });
+}
+
+criterion_group! {
+    name = benches;
+    config = Criterion::default();
+    targets = 
+        criterion_benchmark,
+        bench_f
+}
 criterion_main!(benches);

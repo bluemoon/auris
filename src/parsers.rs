@@ -8,9 +8,57 @@ use nom::{
     IResult,
 };
 
-use crate::{Authority, UserInfo, URI};
+use crate::{Authority, UserInfo, URI, ParseError};
 use std::collections::HashMap;
 use std::str;
+
+use bumpalo::Bump;
+use bumpalo::collections::String as BString;
+
+#[inline]
+pub fn is_alphabetic(chr:u8) -> bool {
+  (chr >= 0x41 && chr <= 0x5A) || (chr >= 0x61 && chr <= 0x7A)
+}
+
+#[inline]
+pub fn is_digit(chr: u8) -> bool {
+  chr >= 0x30 && chr <= 0x39
+}
+
+#[inline]
+pub fn is_alphanumeric(chr: u8) -> bool {
+  is_alphabetic(chr) || is_digit(chr)
+}
+
+pub fn span<'i>(input: &'i str, i_pos: usize, rest_pos: usize) -> &'i str {
+    &input[..i_pos - rest_pos]
+}
+
+fn take<'a,  F: Fn(char) -> bool>(f: F) -> impl Fn(&'a str) -> Result<(&'a str, &'a str), (ParseError, &str)> {
+    move |i: &str| {
+        let mut iter = i.chars();
+        loop {
+            let rest = iter.as_str();
+            match iter.next() {
+                Some(c) if f(c) => {}
+                _ => {
+                    let rest_len = rest.len();
+                    let i_len = i.len();
+                    return if rest_len != i_len {
+                        Ok((span(i, i_len, rest_len), rest))
+                    } else {
+                        Err((ParseError::Failed, i))
+                    }; 
+                }
+            }
+        }
+    }
+}
+
+pub fn f(i: &str) -> Result<(&str, &str), (ParseError, &str)> {
+    let (i, scheme) = take(|f| is_alphanumeric(f as u8) && f != ':')(i)?;
+    Ok((i, scheme))
+}
 
 /// Parse out the scheme
 ///
@@ -25,9 +73,15 @@ use std::str;
 ///
 // Guidelines for URL schemes
 // https://tools.ietf.org/html/rfc2718
-pub fn scheme(input: &str) -> IResult<&str, &str> {
+pub fn scheme<'a>(input: &'a str) -> IResult<&'a str, &'a str>{
     // postgres://
     // bob://
+    // let bump = Bump::new();
+    // let bstr = BString::from_str_in(input, &bump);
+
+    // let r = take(":")(&bstr)?;
+    // 
+    // Ok(r)
     let (remaining, scheme_chunk) = take_till(|c| c == ':')(input)?;
     // :// is the hier part
     let (remaining_post_scheme, _) = tag("://")(remaining)?;
