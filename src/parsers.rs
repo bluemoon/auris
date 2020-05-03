@@ -8,19 +8,9 @@ use nom::{
     IResult,
 };
 
-use crate::{Authority, URI};
+use crate::{Authority, UserInfo, URI};
 use std::collections::HashMap;
 use std::str;
-
-/// Parses structure:
-///
-/// ```notrust
-///     foo://example.com:8042/over/there?name=ferret#nose
-///     \_/   \______________/\_________/ \_________/ \__/
-///      |           |            |            |        |
-///   scheme     authority       path        query   fragment
-/// ```
-///
 
 /// Parse out the scheme
 ///
@@ -60,34 +50,26 @@ fn host_port_combinator<'a>(input: &'a str) -> IResult<&'a str, (&'a str, Option
     Ok((i, (host, port)))
 }
 
-/// Parse the user credentials from the authority section. We can
-/// always expect this function to return a tuple of options. Instead of using
-/// `Option<(Option<&str>, Option<&str>)>`, `(Option<&str>, Option<&str>)` is used
-fn authority_credentials<'a>(
-    input: &'a str,
-) -> IResult<&'a str, (Option<&'a str>, Option<&'a str>)> {
-    let user_pw_combinator = |i: &'a str| -> IResult<&str, (Option<&str>, Option<&str>)> {
+/// Parse the user credentials from the authority section.
+fn authority_credentials<'a>(input: &'a str) -> IResult<&'a str, Option<UserInfo<&'a str>>> {
+    let user_pw_combinator = |i: &'a str| -> IResult<&str, UserInfo<&str>> {
         // user:pw@
         let (remain_chunk_1, user) = cut(alpha1)(i)?;
         let (remain_chunk_2, _) = tag(":")(remain_chunk_1)?;
         let (remain_chunk_3, password) = cut(alpha1)(remain_chunk_2)?;
         let (remain_chunk_4, _) = tag("@")(remain_chunk_3)?;
-        Ok((remain_chunk_4, (Some(user), Some(password))))
+        Ok((remain_chunk_4, UserInfo::UserAndPassword(user, password)))
     };
 
     // Parse user string without a password
-    let user_combinator = |i: &'a str| -> IResult<&str, (Option<&str>, Option<&str>)> {
+    let user_combinator = |i: &'a str| -> IResult<&str, UserInfo<&str>> {
         let (remain_chunk_1, user) = cut(alpha1)(i)?;
         let (remain_chunk_2, _) = tag("@")(remain_chunk_1)?;
-        Ok((remain_chunk_2, (Some(user), None)))
+        Ok((remain_chunk_2, UserInfo::User(user)))
     };
     // The whole statement may fail if there is no match
     // we flatten this out so that you will just get (None, None)
-    let (remain, alt_opt) = opt(alt((user_pw_combinator, user_combinator)))(input)?;
-    match alt_opt {
-        Some(options) => Ok((remain, options)),
-        None => Ok((remain, (None, None))),
-    }
+    opt(alt((user_pw_combinator, user_combinator)))(input)
 }
 
 /// Parse the whole path chunk
@@ -138,13 +120,12 @@ pub fn query<'a>(input: &'a str) -> IResult<&'a str, HashMap<&'a str, &'a str>> 
 // postgres://user:pw@host:5432/db
 pub fn authority(input: &str) -> IResult<&str, Authority<&str>> {
     match all_consuming(tuple((authority_credentials, host_port_combinator)))(input) {
-        Ok((remaining_input, ((username, password), (host, port)))) => Ok((
+        Ok((remaining_input, (userinfo, (host, port)))) => Ok((
             remaining_input,
             Authority {
                 host,
-                password,
+                userinfo,
                 port,
-                username,
             },
         )),
         Err(e) => Err(e),
@@ -161,7 +142,7 @@ pub fn authority(input: &str) -> IResult<&str, Authority<&str>> {
 /// ```
 pub fn uri(input: &str) -> IResult<&str, URI<&str>> {
     let (i, scheme) = scheme(input)?;
-    let (i, (username, password)) = authority_credentials(i)?;
+    let (i, userinfo) = authority_credentials(i)?;
     let (i, (host, port)) = host_port_combinator(i)?;
     let (i, path) = path(i)?;
     let (i, query) = opt(query)(i)?;
@@ -172,8 +153,7 @@ pub fn uri(input: &str) -> IResult<&str, URI<&str>> {
             scheme,
             authority: Authority {
                 host,
-                username,
-                password,
+                userinfo,
                 port,
             },
             path: Some(path),
@@ -194,8 +174,7 @@ mod test {
                 "",
                 Authority {
                     host: "bob".as_ref(),
-                    password: Some("bob".as_ref()),
-                    username: Some("bob".as_ref()),
+                    userinfo: Some(UserInfo::UserAndPassword("bob".as_ref(), "bob".as_ref())),
                     port: None
                 }
             ))
@@ -206,9 +185,8 @@ mod test {
                 "",
                 Authority {
                     host: "b".as_ref(),
-                    password: None,
+                    userinfo: None,
                     port: None,
-                    username: None
                 }
             ))
         )
@@ -218,7 +196,13 @@ mod test {
     fn test_user_info() {
         assert_eq!(
             authority_credentials("bob:password@host"),
-            Ok(("host", (Some("bob"), Some("password"))))
+            Ok((
+                "host",
+                Some(UserInfo::UserAndPassword(
+                    "bob".as_ref(),
+                    "password".as_ref()
+                ))
+            ))
         )
     }
 
@@ -226,7 +210,7 @@ mod test {
     fn test_bad_user_info() {
         assert_eq!(
             authority_credentials("iamnotahost.com"),
-            Ok(("iamnotahost.com", (None, None)))
+            Ok(("iamnotahost.com", None))
         )
     }
 
@@ -257,8 +241,7 @@ mod test {
                     scheme: "a".as_ref(),
                     authority: Authority {
                         host: "d.e".as_ref(),
-                        username: Some("b".as_ref()),
-                        password: Some("c".as_ref()),
+                        userinfo: Some(UserInfo::UserAndPassword("b".as_ref(), "c".as_ref())),
                         port: None
                     },
                     path: Some(vec!("f".as_ref(), "g".as_ref(), "h".as_ref())),

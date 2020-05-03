@@ -1,5 +1,4 @@
 use auris::parsers::uri;
-use auris::URI;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 
 fn criterion_benchmark(c: &mut Criterion) {

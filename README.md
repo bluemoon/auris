@@ -46,6 +46,8 @@ In the case of duplicated query string tags the last one wins:
 - [x] Ports
 - [x] Split up into multiple files
 - [x] Domains with .
+- [x] Rendering of URIs and Authority with fmt::Display
+- [ ] Net loc compliance
 - [ ] Parsing IPv4, IPv6
 - [ ] Parsing fragments
 - [ ] Percent encoding and decoding
