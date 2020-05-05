@@ -49,19 +49,19 @@ use std::str::FromStr;
 pub mod parsers;
 
 #[derive(Debug)]
-pub enum AurisParseErrorKind {
+pub enum ParseError {
     Failed,
 }
 
 #[derive(Debug)]
-pub struct ParseError {
-    kind: AurisParseErrorKind,
+pub struct AurisErr {
+    kind: ParseError,
 }
 
-impl fmt::Display for ParseError {
+impl fmt::Display for AurisErr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
-            AurisParseErrorKind::Failed => write!(f, "Parsing failed"),
+            ParseError::Failed => write!(f, "Parsing failed"),
         }
     }
 }
@@ -188,13 +188,13 @@ impl URI<&str> {
 }
 
 impl FromStr for URI<String> {
-    type Err = ParseError;
+    type Err = AurisErr;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match parsers::uri(s) {
             Ok((_, obj)) => Ok(obj.to_owned()),
-            Err(_) => Err(ParseError {
-                kind: AurisParseErrorKind::Failed,
+            Err(_) => Err(AurisErr {
+                kind: ParseError::Failed,
             }),
         }
     }
