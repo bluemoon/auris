@@ -47,8 +47,9 @@ In the case of duplicated query string tags the last one wins:
 - [x] Split up into multiple files
 - [x] Domains with .
 - [x] Rendering of URIs and Authority with fmt::Display
+- [x] Parsing fragments
+- [x] RFC 3986 compliant character sets (userinfo, path, query)
 - [ ] Net loc compliance
-- [ ] Parsing IPv4, IPv6
-- [ ] Parsing fragments
+- [x] Parsing IPv4, IPv6
 - [ ] Percent encoding and decoding
-- [ ] QuickCheck?
+- [x] QuickCheck property-based testing
