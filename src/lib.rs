@@ -268,7 +268,10 @@ mod tests {
     #[test]
     fn test_display_roundtrip_with_userinfo() {
         let parsed: URI<String> = "ftp://user:pass@ftp.example.com/file".parse().unwrap();
-        assert_eq!(format!("{}", parsed), "ftp://user:pass@ftp.example.com/file");
+        assert_eq!(
+            format!("{}", parsed),
+            "ftp://user:pass@ftp.example.com/file"
+        );
     }
 
     #[test]
@@ -285,7 +288,9 @@ mod tests {
 
     #[test]
     fn test_display_full_uri() {
-        let parsed: URI<String> = "https://user:pass@example.com:443/path/to/resource#top".parse().unwrap();
+        let parsed: URI<String> = "https://user:pass@example.com:443/path/to/resource#top"
+            .parse()
+            .unwrap();
         let displayed = format!("{}", parsed);
         // Verify all components are present
         assert!(displayed.starts_with("https://"));
@@ -327,7 +332,9 @@ mod quickcheck_tests {
 
     /// Generate a valid path segment (alphanumeric, -, _, .)
     fn gen_path_segment(g: &mut Gen) -> String {
-        let segments = ["path", "to", "resource", "api", "v1", "users", "123", "file.txt"];
+        let segments = [
+            "path", "to", "resource", "api", "v1", "users", "123", "file.txt",
+        ];
         segments[usize::arbitrary(g) % segments.len()].to_string()
     }
 

@@ -20,7 +20,10 @@ fn is_userinfo_char(c: char) -> bool {
 
 /// RFC 3986 sub-delims: "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
 fn is_sub_delim(c: char) -> bool {
-    matches!(c, '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=')
+    matches!(
+        c,
+        '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '='
+    )
 }
 
 /// Characters allowed in path segments (pchar without delimiters)
@@ -92,15 +95,14 @@ fn host_port_combinator<'a>(input: &'a str) -> IResult<&'a str, (&'a str, Option
     // IPv6 addresses are enclosed in brackets, so ':' inside brackets is part of the address
     if input.starts_with('[') {
         // Parse IPv6 literal: find closing bracket
-        let ipv6_host_parser =
-            |i: &'a str| -> IResult<&'a str, &'a str> {
-                let (remain, _) = tag("[")(i)?;
-                let (remain, addr) = take_till(|c| c == ']')(remain)?;
-                let (remain, _) = tag("]")(remain)?;
-                // Return the full bracketed form including brackets
-                let end_pos = 1 + addr.len() + 1; // '[' + addr + ']'
-                Ok((remain, &i[..end_pos]))
-            };
+        let ipv6_host_parser = |i: &'a str| -> IResult<&'a str, &'a str> {
+            let (remain, _) = tag("[")(i)?;
+            let (remain, addr) = take_till(|c| c == ']')(remain)?;
+            let (remain, _) = tag("]")(remain)?;
+            // Return the full bracketed form including brackets
+            let end_pos = 1 + addr.len() + 1; // '[' + addr + ']'
+            Ok((remain, &i[..end_pos]))
+        };
 
         let (i, host) = ipv6_host_parser(input)?;
         let (i, port) = opt(port_combinator)(i)?;
@@ -108,8 +110,9 @@ fn host_port_combinator<'a>(input: &'a str) -> IResult<&'a str, (&'a str, Option
     }
 
     // Regular host (domain or IPv4): stops at ':', '/', '?', or '#'
-    let host_parser =
-        |i: &'a str| -> IResult<&'a str, &'a str> { take_till(|c| c == '/' || c == '?' || c == ':' || c == '#')(i) };
+    let host_parser = |i: &'a str| -> IResult<&'a str, &'a str> {
+        take_till(|c| c == '/' || c == '?' || c == ':' || c == '#')(i)
+    };
 
     // example.com:8080/path
     let (i, host) = host_parser(input)?;
@@ -157,7 +160,12 @@ pub fn path<'a>(input: &'a str) -> IResult<&'a str, Vec<&'a str>> {
 
 /// Characters allowed in query keys (subset - no '=' or '&')
 fn is_query_key_char(c: char) -> bool {
-    is_unreserved(c) || c == '%' || matches!(c, '!' | '$' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | ':' | '@' | '/' | '?')
+    is_unreserved(c)
+        || c == '%'
+        || matches!(
+            c,
+            '!' | '$' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | ':' | '@' | '/' | '?'
+        )
 }
 
 /// Characters allowed in query values (subset - no '&' or '#')
@@ -394,10 +402,7 @@ mod test {
         let result = uri("http://example.com/api/v2/users/123");
         assert!(result.is_ok());
         let (_, parsed) = result.unwrap();
-        assert_eq!(
-            parsed.path,
-            Some(vec!["api", "v2", "users", "123"])
-        );
+        assert_eq!(parsed.path, Some(vec!["api", "v2", "users", "123"]));
     }
 
     #[test]
@@ -548,7 +553,10 @@ mod test {
         let result = uri("http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]/");
         assert!(result.is_ok());
         let (_, parsed) = result.unwrap();
-        assert_eq!(parsed.authority.host, "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]");
+        assert_eq!(
+            parsed.authority.host,
+            "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]"
+        );
     }
 
     #[test]
